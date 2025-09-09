@@ -3,7 +3,7 @@ version: "3.9"
 services:
   web:
     build: .
-    command: gunicorn youtube_downloader.wsgi:application --bind 0.0.0.0:8000
+    command: gunicorn --workers 3 --timeout 120 youtube_downloader.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
@@ -14,15 +14,25 @@ services:
       - db
     environment:
       - PYTHONUNBUFFERED=1
+      - SECRET_KEY=your-secret-key-here
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - DB_NAME=yt_db
+      - DB_USER=postgres
+      - DB_PASSWORD=Money237__@
+      - DB_HOST=db
+      - DB_PORT=5432
 
   db:
     image: postgres:14
     environment:
-      POSTGRES_DB: yt_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Money237__@
+      - POSTGRES_DB=yt_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Money237__@
     volumes:
       - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"  # Optional: Expose DB port for local access
 
 volumes:
   postgres_data:

@@ -3,14 +3,14 @@
 {% block content %}
 <div class="max-w-4xl mx-auto px-4 py-8">
     <!-- Debug Info (Remove in production) -->
-    <div class="bg-yellow-100 border border-yellow-400 rounded-xl p-4 mb-4">
+    {% comment %} <div class="bg-yellow-100 border border-yellow-400 rounded-xl p-4 mb-4">
         <h4 class="font-bold text-yellow-800 mb-2">DEBUG INFO:</h4>
         <p><strong>Video Title:</strong> "{{ video_title|default:"None" }}"</p>
         <p><strong>Thumbnail URL:</strong> "{{ thumbnail_url|default:"None" }}"</p>
         <p><strong>Video Streams Count:</strong> {{ video_streams|length|default:"0" }}</p>
         <p><strong>Audio Stream:</strong> {% if audio_stream %}Yes (format_id: {{ audio_stream.format_id|default:"None" }}) {% else %}No{% endif %}</p>
         <p><strong>Error:</strong> "{{ error|default:"None" }}"</p>
-    </div>
+    </div> {% endcomment %}
 
     <!-- Video Details Header -->
     <div class="text-center mb-12 fade-in">
