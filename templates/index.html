@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}Home - YouTube Downloader{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Hero Section -->
+    <div class="text-center mb-12 fade-in">
+        <h1 class="text-4xl font-bold font-montserrat text-primary mb-4">YouTube Video Downloader</h1>
+        <p class="text-lg text-muted mb-8 font-lato">Download your favorite YouTube videos in high quality with just a few clicks!</p>
+        
+        <!-- Download Form -->
+        <form method="post" action="{% url 'download' %}" id="download-form" class="max-w-md mx-auto mb-8">
+            {% csrf_token %}
+            <div class="relative">
+                <input type="url" id="video_url" name="video_url" placeholder="Paste YouTube URL here..." 
+                       class="custom-input w-full pr-12" required>
+                <button type="submit" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-secondary text-white px-4 py-2 rounded-md font-semibold hover:bg-secondary/90 transition-all duration-300">
+                    Download
+                </button>
+            </div>
+        </form>
+
+        <!-- Progress Bar Section (Hidden initially) -->
+        <div id="progress-section" class="hidden mb-8 p-6 glass-effect rounded-xl">
+            <h3 class="text-lg font-semibold mb-4 text-primary">Downloading...</h3>
+            <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+                <div id="progress-bar" class="bg-success h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="progress-text" class="text-center text-sm text-muted">0%</p>
+        </div>
+
+        <!-- Login Prompt if trying to download without auth -->
+        <div id="login-prompt" class="hidden p-4 bg-warning/20 border border-warning rounded-lg mb-8">
+            <p class="text-warning font-medium">Please <a href="{% url 'login' %}" class="underline">login</a> or <a href="{% url 'signup' %}" class="underline">signup</a> to download videos.</p>
+        </div>
+    </div>
+
+    <!-- Sample/Public Downloads Section -->
+    <div class="grid md:grid-cols-3 gap-6">
+        {% for download in downloads %}
+            <div class="glass-effect rounded-xl p-6 card-hover">
+                <div class="relative mb-4">
+                    {% if download.thumbnail_url %}
+                        <img src="{{ download.thumbnail_url }}" alt="{{ download.title }}" class="w-full h-32 object-cover rounded-lg">
+                    {% else %}
+                        <div class="w-full h-32 bg-gray-300 rounded-lg flex items-center justify-center">
+                            <span class="text-gray-500">No Thumbnail</span>
+                        </div>
+                    {% endif %}
+                </div>
+                <h3 class="font-semibold text-primary mb-2 truncate">{{ download.title|truncatechars:50 }}</h3>
+                <p class="text-sm text-muted mb-2">{{ download.url|truncatechars:50 }}</p>
+                <p class="text-xs text-success font-medium">{{ download.downloaded_at|date:"M d, Y" }}</p>
+            </div>
+        {% empty %}
+            <div class="col-span-full text-center py-12">
+                <p class="text-muted text-lg">No downloads yet. Be the first to download a video!</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+class DownloadHandler {
+    constructor() {
+        this.form = document.getElementById('download-form');
+        this.progressSection = document.getElementById('progress-section');
+        this.progressBar = document.getElementById('progress-bar');
+        this.progressText = document.getElementById('progress-text');
+        this.loginPrompt = document.getElementById('login-prompt');
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        this.form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.handleSubmit();
+        });
+    }
+
+    async handleSubmit() {
+        const formData = new FormData(this.form);
+        const videoUrl = formData.get('video_url');
+
+        if (!videoUrl) {
+            toastManager.buildToast()
+                .setMessage('Please enter a YouTube URL')
+                .setType('error')
+                .show();
+            return;
+        }
+
+        try {
+            this.showProgress(10); // Initial progress
+
+            const response = await fetch(this.form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.status === 401) { // Not authenticated
+                this.loginPrompt.classList.remove('hidden');
+                this.hideProgress();
+                toastManager.buildToast()
+                    .setMessage(data.error || 'Please login to download')
+                    .setType('warning')
+                    .show();
+                return;
+            }
+
+            if (!data.success) {
+                this.hideProgress();
+                toastManager.buildToast()
+                    .setMessage(data.error || 'Failed to process video URL')
+                    .setType('error')
+                    .show();
+                return;
+            }
+
+            // Success - simulate progress for format selection page load
+            this.simulateProgress();
+            
+        } catch (error) {
+            this.hideProgress();
+            toastManager.buildToast()
+                .setMessage('Network error occurred')
+                .setType('error')
+                .show();
+        }
+    }
+
+    showProgress(percent) {
+        this.progressSection.classList.remove('hidden');
+        this.progressBar.style.width = percent + '%';
+        this.progressText.textContent = percent + '%';
+    }
+
+    hideProgress() {
+        this.progressSection.classList.add('hidden');
+        this.progressBar.style.width = '0%';
+        this.progressText.textContent = '0%';
+    }
+
+    simulateProgress() {
+        let percent = 10;
+        const interval = setInterval(() => {
+            percent += Math.random() * 15;
+            if (percent >= 90) {
+                percent = 90;
+                clearInterval(interval);
+                // Redirect to download page after simulation
+                setTimeout(() => {
+                    window.location.href = '{% url "download" %}';
+                }, 1000);
+            }
+            this.showProgress(Math.floor(percent));
+        }, 200);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => new DownloadHandler());
+</script>
+{% endblock %}

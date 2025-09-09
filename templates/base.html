@@ -1,0 +1,46 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YouTube Downloader{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+    <script src="{% static 'js/toast_manager.js' %}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            {% if messages %}
+                {% for message in messages %}
+                    toastManager.buildToast()
+                        .setMessage('{{ message }}')
+                        .setType('{{ message.tags }}')
+                        .setPosition('top-right')
+                        .setDuration(4000)
+                        .show();
+                {% endfor %}
+            {% endif %}
+        });
+    </script>
+</head>
+<body class="bg-light min-h-screen">
+    <nav class="bg-primary text-white p-4 font-poppins">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{% url 'home' %}" class="text-xl font-bold">YouTube Downloader</a>
+            <div class="space-x-4">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'my_downloads' %}" class="hover:bg-white/10 px-3 py-2 rounded-md transition-all duration-300">My Downloads</a>
+                    <a href="{% url 'logout' %}" class="hover:bg-white/10 px-3 py-2 rounded-md transition-all duration-300">Logout ({{ user.username }})</a>
+                {% else %}
+                    <a href="{% url 'login' %}" class="hover:bg-white/10 px-3 py-2 rounded-md transition-all duration-300">Login</a>
+                    <a href="{% url 'signup' %}" class="hover:bg-white/10 px-3 py-2 rounded-md transition-all duration-300">Signup</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+    <main class="container mx-auto mt-8 px-4">
+        {% block content %}
+        {% endblock %}
+    </main>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Signup - YouTube Downloader{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="glass-effect rounded-xl p-8 custom-form">
+        <h2 class="text-2xl font-bold text-center text-primary mb-8 font-montserrat">Create Account</h2>
+        <form method="post" id="signup-form">
+            {% csrf_token %}
+            <div class="mb-6">
+                <label for="username" class="custom-label">Username</label>
+                <input type="text" id="username" name="username" class="custom-input" required>
+            </div>
+            <div class="mb-6">
+                <label for="email" class="custom-label">Email</label>
+                <input type="email" id="email" name="email" class="custom-input" required>
+            </div>
+            <div class="mb-6">
+                <label for="password1" class="custom-label">Password</label>
+                <input type="password" id="password1" name="password1" class="custom-input" required minlength="8">
+            </div>
+            <div class="mb-8">
+                <label for="password2" class="custom-label">Confirm Password</label>
+                <input type="password" id="password2" name="password2" class="custom-input" required minlength="8">
+            </div>
+            <button type="submit" class="custom-btn">Sign Up</button>
+        </form>
+        <p class="text-center text-sm text-muted mt-4">
+            Already have an account? <a href="{% url 'login' %}" class="text-primary hover:underline font-medium">Login here</a>
+        </p>
+    </div>
+</div>
+
+<script>
+class SignupHandler {
+    constructor() {
+        this.form = document.getElementById('signup-form');
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        this.form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.handleSubmit();
+        });
+
+        // Password confirmation check
+        const password1 = document.getElementById('password1');
+        const password2 = document.getElementById('password2');
+        password2.addEventListener('input', () => {
+            if (password1.value && password2.value && password1.value !== password2.value) {
+                password2.classList.add('border-danger');
+            } else {
+                password2.classList.remove('border-danger');
+            }
+        });
+    }
+
+    async handleSubmit() {
+        const formData = new FormData(this.form);
+        const password1 = formData.get('password1');
+        const password2 = formData.get('password2');
+
+        if (password1 !== password2) {
+            toastManager.buildToast()
+                .setMessage('Passwords do not match')
+                .setType('error')
+                .show();
+            return;
+        }
+
+        if (password1.length < 8) {
+            toastManager.buildToast()
+                .setMessage('Password must be at least 8 characters')
+                .setType('error')
+                .show();
+            return;
+        }
+
+        try {
+            const response = await fetch(this.form.action || window.location.pathname, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toastManager.buildToast()
+                    .setMessage('Account created successfully! Redirecting...')
+                    .setType('success')
+                    .setDuration(2000)
+                    .show();
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || '/';
+                }, 1500);
+            } else {
+                toastManager.buildToast()
+                    .setMessage(data.error || 'Signup failed')
+                    .setType('error')
+                    .show();
+            }
+        } catch (error) {
+            toastManager.buildToast()
+                .setMessage('Network error: ' + error.message)
+                .setType('error')
+                .show();
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => new SignupHandler());
+</script>
+{% endblock %}

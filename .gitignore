@@ -66,3 +66,5 @@ Thumbs.db
 
 # Postgres data (if you mount a volume locally)
 postgres_data/
+
+node_modules

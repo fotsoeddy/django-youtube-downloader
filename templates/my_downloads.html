@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}My Downloads{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold text-primary mb-8 font-montserrat">My Downloads</h1>
+    
+    {% if downloads %}
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for download in downloads %}
+                <div class="glass-effect rounded-xl p-4 card-hover">
+                    <div class="relative mb-3">
+                        {% if download.thumbnail_url %}
+                            <img src="{{ download.thumbnail_url }}" alt="{{ download.title }}" class="w-full h-32 object-cover rounded-lg">
+                        {% else %}
+                            <div class="w-full h-32 bg-gray-300 rounded-lg flex items-center justify-center">
+                                <span class="text-gray-500">No Thumbnail</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <h3 class="font-semibold text-primary mb-2 truncate">{{ download.title|truncatechars:40 }}</h3>
+                    <p class="text-sm text-muted mb-2">{{ download.url|truncatechars:40 }}</p>
+                    <p class="text-xs text-success">{{ download.downloaded_at|date:"M d, Y H:i" }}</p>
+                    <p class="text-xs text-info font-medium">Format: {{ download.format_id }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-12">
+            <p class="text-muted text-lg">No downloads yet.</p>
+            <a href="{% url 'home' %}" class="btn-primary mt-4 inline-block">Start Downloading</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <!-- Link to our CSS stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube Video Downloader</h1>
+        <p class="subtitle">Paste the URL of the YouTube video you want to download.</p>
+        
+        <!-- Form to submit the YouTube URL -->
+        <form action="/download" method="POST" class="url-form">
+            <input type="text" name="video_url" placeholder="https://www.youtube.com/watch?v=..." required autocomplete="off">
+            <button type="submit">Download</button>
+        </form>
+
+        <!-- Display an error message if one exists -->
+        {% if error %}
+            <p class="error-message">{{ error }}</p>
+        {% endif %}
+
+        <div id="spinner" style="display:none;">
+            <div class="loader"></div>
+            <p>Loading, please wait...</p>
+        </div>
+    </div>
+
+    <!-- JavaScript to show the spinner when the form is submitted -->
+    <script>
+    document.querySelector('.url-form').addEventListener('submit', function() {
+        document.getElementById('spinner').style.display = 'block';
+    });
+    </script>
+</body>
+</html>

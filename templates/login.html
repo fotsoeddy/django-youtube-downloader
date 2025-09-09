@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Login - YouTube Downloader{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="glass-effect rounded-xl p-8 custom-form">
+        <h2 class="text-2xl font-bold text-center text-primary mb-8 font-montserrat">Login</h2>
+        <form method="post" id="login-form">
+            {% csrf_token %}
+            <div class="mb-6">
+                <label for="username" class="custom-label">Username</label>
+                <input type="text" id="username" name="username" class="custom-input" required autofocus>
+            </div>
+            <div class="mb-6">
+                <label for="password" class="custom-label">Password</label>
+                <input type="password" id="password" name="password" class="custom-input" required>
+            </div>
+            <button type="submit" class="custom-btn">Login</button>
+        </form>
+        <p class="text-center text-sm text-muted mt-4">
+            Don't have an account? <a href="{% url 'signup' %}" class="text-primary hover:underline font-medium">Sign up here</a>
+        </p>
+    </div>
+</div>
+
+<script>
+class LoginHandler {
+    constructor() {
+        this.form = document.getElementById('login-form');
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        this.form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.handleSubmit();
+        });
+    }
+
+    async handleSubmit() {
+        const formData = new FormData(this.form);
+        
+        try {
+            const response = await fetch(this.form.action || window.location.pathname, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toastManager.buildToast()
+                    .setMessage('Login successful! Redirecting...')
+                    .setType('success')
+                    .setDuration(2000)
+                    .show();
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || '/';
+                }, 1500);
+            } else {
+                toastManager.buildToast()
+                    .setMessage(data.error || 'Login failed')
+                    .setType('error')
+                    .show();
+            }
+        } catch (error) {
+            toastManager.buildToast()
+                .setMessage('Network error: ' + error.message)
+                .setType('error')
+                .show();
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => new LoginHandler());
+</script>
+{% endblock %}

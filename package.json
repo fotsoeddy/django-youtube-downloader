@@ -1,0 +1,27 @@
+{
+  "name": "yt_downloader",
+  "version": "3.8.0",
+  "description": "",
+  "scripts": {
+    "start": "npm run dev",
+    "build": "npm run build:clean && npm run build:tailwind",
+    "build:clean": "rimraf -i ./static/css/output.css",
+    "build:tailwind": "tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify",
+    "dev": "tailwindcss -i ./static/css/input.css -o ./static/css/output.css --watch --minify",
+    "tailwindcss": "node ./node_modules/tailwindcss/lib/cli.js"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.4",
+    "flowbite-typography": "^1.0.5",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^4.1.4"
+  },
+  "dependencies": {
+    "@parcel/watcher": "^2.5.1",
+    "flowbite": "^3.1.2"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
+    "lightningcss-linux-x64-gnu": "^1.29.1"
+  }
+}

@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    command: gunicorn youtube_downloader.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: yt_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Money237__@
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:

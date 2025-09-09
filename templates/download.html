@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block title %}{{ video_title }} - Download Options{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <!-- Video Details -->
+    <div class="glass-effect rounded-xl p-6 mb-8 card-hover">
+        <div class="flex items-start space-x-4">
+            {% if thumbnail_url %}
+                <img src="{{ thumbnail_url }}" alt="Video Thumbnail" class="w-32 h-24 object-cover rounded-lg flex-shrink-0">
+            {% else %}
+                <div class="w-32 h-24 bg-gray-300 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span class="text-gray-500 text-sm">No Thumbnail</span>
+                </div>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+                <h2 class="text-2xl font-bold text-primary mb-2 truncate">{{ video_title }}</h2>
+                <p class="text-sm text-muted mb-4">Choose your preferred format below</p>
+                <form id="back-form" method="get" action="{% url 'home' %}" style="display: inline;">
+                    <button type="submit" class="text-info hover:underline text-sm">← Back to Home</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if error %}
+        <div class="p-4 bg-danger/20 border border-danger rounded-lg mb-6">
+            <p class="text-danger font-medium">{{ error }}</p>
+        </div>
+    {% endif %}
+
+    <!-- Download Options -->
+    <div class="space-y-8">
+        <!-- Video Options -->
+        {% if video_streams %}
+            <div class="glass-effect rounded-xl p-6">
+                <h3 class="text-xl font-semibold text-primary mb-4 flex items-center">
+                    <i class="fas fa-video mr-2 text-success"></i> Video Formats (MP4)
+                </h3>
+                <div class="grid md:grid-cols-3 gap-3">
+                    {% for stream in video_streams %}
+                        <form method="post" action="{% url 'download_file' %}" class="download-form" data-format="{{ stream.format_id }}">
+                            {% csrf_token %}
+                            <input type="hidden" name="video_url" value="{{ video_url }}">
+                            <input type="hidden" name="format_id" value="{{ stream.format_id }}">
+                            <button type="submit" class="w-full custom-btn bg-success hover:bg-success/90">
+                                {{ stream.format_note|default:stream.height }}p
+                                {% if stream.tbr %}
+                                    <span class="text-xs block">({{ stream.tbr }}kbps)</span>
+                                {% endif %}
+                            </button>
+                        </form>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Audio Only Option -->
+        {% if audio_stream %}
+            <div class="glass-effect rounded-xl p-6">
+                <h3 class="text-xl font-semibold text-primary mb-4 flex items-center">
+                    <i class="fas fa-music mr-2 text-info"></i> Audio Only ({{ audio_stream.ext|upper }})
+                </h3>
+                <form method="post" action="{% url 'download_file' %}" class="download-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="video_url" value="{{ video_url }}">
+                    <input type="hidden" name="format_id" value="{{ audio_stream.format_id }}">
+                    <button type="submit" class="w-full custom-btn bg-info hover:bg-info/90">
+                        Download Audio ({{ audio_stream.abr|default:"Best Quality" }})
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Progress Bar for Download -->
+    <div id="progress-overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="glass-effect rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-semibold mb-4 text-white">Downloading Video...</h3>
+            <div class="w-full bg-white/20 rounded-full h-3 mb-2">
+                <div id="download-progress" class="bg-success h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="download-progress-text" class="text-center text-sm text-white">0%</p>
+            <p id="download-status" class="text-center text-sm text-white/80 mt-2">Preparing download...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+class DownloadOptionsHandler {
+    constructor() {
+        this.forms = document.querySelectorAll('.download-form');
+        this.progressOverlay = document.getElementById('progress-overlay');
+        this.progressBar = document.getElementById('download-progress');
+        this.progressText = document.getElementById('download-progress-text');
+        this.statusText = document.getElementById('download-status');
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        this.forms.forEach(form => {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleDownload(form);
+            });
+        });
+    }
+
+    async handleDownload(form) {
+        const formData = new FormData(form);
+        this.showProgress(0);
+
+        try {
+            // Simulate initial processing
+            this.updateProgress(10, 'Processing video info...');
+            
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                this.hideProgress();
+                toastManager.buildToast()
+                    .setMessage(data.error || 'Download failed')
+                    .setType('error')
+                    .show();
+                return;
+            }
+
+            // Simulate download progress
+            this.simulateDownloadProgress();
+
+            // The FileResponse will trigger download directly
+            // For demo, we'll simulate completion
+            setTimeout(() => {
+                this.updateProgress(100, 'Download complete!');
+                toastManager.buildToast()
+                    .setMessage('Download started successfully!')
+                    .setType('success')
+                    .show();
+                setTimeout(() => this.hideProgress(), 1500);
+            }, 1000);
+
+        } catch (error) {
+            this.hideProgress();
+            this.updateProgress(0, 'Error occurred');
+            toastManager.buildToast()
+                .setMessage('Download error: ' + error.message)
+                .setType('error')
+                .show();
+        }
+    }
+
+    showProgress(percent) {
+        this.progressOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    hideProgress() {
+        this.progressOverlay.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        this.progressBar.style.width = '0%';
+        this.progressText.textContent = '0%';
+    }
+
+    updateProgress(percent, status) {
+        this.progressBar.style.width = percent + '%';
+        this.progressText.textContent = Math.floor(percent) + '%';
+        this.statusText.textContent = status;
+    }
+
+    simulateDownloadProgress() {
+        let percent = 10;
+        const updates = [
+            'Fetching video data...',
+            'Downloading video stream...',
+            'Downloading audio stream...',
+            'Merging video and audio...',
+            'Finalizing download...'
+        ];
+        let updateIndex = 0;
+
+        const interval = setInterval(() => {
+            percent += Math.random() * 20;
+            if (percent >= 100) {
+                percent = 100;
+                clearInterval(interval);
+            }
+            this.updateProgress(percent, updates[updateIndex] || 'Completing download...');
+            updateIndex = Math.floor(percent / 20);
+        }, 800);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => new DownloadOptionsHandler());
+</script>
+{% endblock %}
