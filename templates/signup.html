@@ -22,7 +22,16 @@
                 <label for="password2" class="custom-label">Confirm Password</label>
                 <input type="password" id="password2" name="password2" class="custom-input" required minlength="8">
             </div>
-            <button type="submit" class="custom-btn">Sign Up</button>
+            <button type="submit" class="custom-btn" id="signup-btn">
+                <span class="btn-text">Sign Up</span>
+                <span class="btn-loader hidden">
+                    <svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                </span>
+            </button>
         </form>
         <p class="text-center text-sm text-muted mt-4">
             Already have an account? <a href="{% url 'login' %}" class="text-primary hover:underline font-medium">Login here</a>
@@ -34,6 +43,9 @@
 class SignupHandler {
     constructor() {
         this.form = document.getElementById('signup-form');
+        this.button = document.getElementById('signup-btn');
+        this.btnText = this.button.querySelector('.btn-text');
+        this.btnLoader = this.button.querySelector('.btn-loader');
         this.initEventListeners();
     }
 
@@ -43,7 +55,6 @@ class SignupHandler {
             await this.handleSubmit();
         });
 
-        // Password confirmation check
         const password1 = document.getElementById('password1');
         const password2 = document.getElementById('password2');
         password2.addEventListener('input', () => {
@@ -55,7 +66,14 @@ class SignupHandler {
         });
     }
 
+    toggleLoading(isLoading) {
+        this.button.disabled = isLoading;
+        this.btnText.classList.toggle('hidden', isLoading);
+        this.btnLoader.classList.toggle('hidden', !isLoading);
+    }
+
     async handleSubmit() {
+        this.toggleLoading(true);
         const formData = new FormData(this.form);
         const password1 = formData.get('password1');
         const password2 = formData.get('password2');
@@ -65,6 +83,7 @@ class SignupHandler {
                 .setMessage('Passwords do not match')
                 .setType('error')
                 .show();
+            this.toggleLoading(false);
             return;
         }
 
@@ -73,6 +92,7 @@ class SignupHandler {
                 .setMessage('Password must be at least 8 characters')
                 .setType('error')
                 .show();
+            this.toggleLoading(false);
             return;
         }
 
@@ -81,6 +101,7 @@ class SignupHandler {
                 method: 'POST',
                 body: formData,
                 headers: {
+                    'X-Requested-With': 'XMLHttpRequest', // Ensure AJAX header
                     'X-CSRFToken': formData.get('csrfmiddlewaretoken')
                 }
             });
@@ -107,10 +128,20 @@ class SignupHandler {
                 .setMessage('Network error: ' + error.message)
                 .setType('error')
                 .show();
+        } finally {
+            this.toggleLoading(false);
         }
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => new SignupHandler());
+document.addEventListener('DOMContentLoaded', () => {
+    new SignupHandler();
+    {% if error %}
+        toastManager.buildToast()
+            .setMessage('{{ error|escapejs }}')
+            .setType('error')
+            .show();
+    {% endif %}
+});
 </script>
 {% endblock %}

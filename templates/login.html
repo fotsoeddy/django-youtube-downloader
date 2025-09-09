@@ -14,7 +14,16 @@
                 <label for="password" class="custom-label">Password</label>
                 <input type="password" id="password" name="password" class="custom-input" required>
             </div>
-            <button type="submit" class="custom-btn">Login</button>
+            <button type="submit" class="custom-btn" id="login-btn">
+                <span class="btn-text">Login</span>
+                <span class="btn-loader hidden">
+                    <svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                </span>
+            </button>
         </form>
         <p class="text-center text-sm text-muted mt-4">
             Don't have an account? <a href="{% url 'signup' %}" class="text-primary hover:underline font-medium">Sign up here</a>
@@ -26,6 +35,9 @@
 class LoginHandler {
     constructor() {
         this.form = document.getElementById('login-form');
+        this.button = document.getElementById('login-btn');
+        this.btnText = this.button.querySelector('.btn-text');
+        this.btnLoader = this.button.querySelector('.btn-loader');
         this.initEventListeners();
     }
 
@@ -36,7 +48,14 @@ class LoginHandler {
         });
     }
 
+    toggleLoading(isLoading) {
+        this.button.disabled = isLoading;
+        this.btnText.classList.toggle('hidden', isLoading);
+        this.btnLoader.classList.toggle('hidden', !isLoading);
+    }
+
     async handleSubmit() {
+        this.toggleLoading(true);
         const formData = new FormData(this.form);
         
         try {
@@ -44,6 +63,7 @@ class LoginHandler {
                 method: 'POST',
                 body: formData,
                 headers: {
+                    'X-Requested-With': 'XMLHttpRequest', // Ensure AJAX header
                     'X-CSRFToken': formData.get('csrfmiddlewaretoken')
                 }
             });
@@ -70,10 +90,20 @@ class LoginHandler {
                 .setMessage('Network error: ' + error.message)
                 .setType('error')
                 .show();
+        } finally {
+            this.toggleLoading(false);
         }
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => new LoginHandler());
+document.addEventListener('DOMContentLoaded', () => {
+    new LoginHandler();
+    {% if error %}
+        toastManager.buildToast()
+            .setMessage('{{ error|escapejs }}')
+            .setType('error')
+            .show();
+    {% endif %}
+});
 </script>
 {% endblock %}

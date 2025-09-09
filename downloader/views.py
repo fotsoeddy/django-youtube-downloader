@@ -25,14 +25,18 @@ class HomeView(TemplateView):
     def get_context_data(self, **kwargs):
         logger.debug("Entering HomeView.get_context_data")
         context = super().get_context_data(**kwargs)
+        
         if self.request.user.is_authenticated:
             downloads = self.request.user.downloads.all().order_by('-downloaded_at')[:3]
-            logger.info(f"User {self.request.user.username} accessed home page with {len(downloads)} recent downloads")
+            public_downloads = DownloadedVideo.objects.exclude(user=self.request.user).order_by('-downloaded_at')[:3]
+            logger.info(f"User {self.request.user.username} accessed home page with {len(downloads)} user downloads and {len(public_downloads)} public downloads")
             context['downloads'] = downloads
         else:
-            downloads = DownloadedVideo.objects.filter(user__isnull=False).order_by('-downloaded_at')[:3] if DownloadedVideo.objects.exists() else []
-            logger.info(f"Unauthenticated user accessed home page with {len(downloads)} public downloads")
-            context['downloads'] = downloads
+            downloads = []
+            public_downloads = DownloadedVideo.objects.filter(user__isnull=False).order_by('-downloaded_at')[:3] if DownloadedVideo.objects.exists() else []
+            logger.info(f"Unauthenticated user accessed home page with {len(public_downloads)} public downloads")
+        
+        context['public_downloads'] = public_downloads
         context['is_authenticated'] = self.request.user.is_authenticated
         logger.debug("Exiting HomeView.get_context_data with context: %s", context)
         return context
@@ -64,10 +68,8 @@ class LoginView(View):
                 logger.debug("Returning JSON response for failed login (missing credentials)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering login template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
         user = authenticate(request, username=username, password=password)
         if user:
@@ -86,10 +88,8 @@ class LoginView(View):
                 logger.debug("Returning JSON response for failed login (invalid credentials)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering login template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
 class SignupView(View):
     template_name = 'signup.html'
@@ -120,10 +120,8 @@ class SignupView(View):
                 logger.debug("Returning JSON response for failed signup (missing fields)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering signup template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
         if password1 != password2:
             error_msg = 'Passwords do not match'
@@ -132,10 +130,8 @@ class SignupView(View):
                 logger.debug("Returning JSON response for failed signup (password mismatch)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering signup template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
         if User.objects.filter(username=username).exists():
             error_msg = 'Username already exists'
@@ -144,10 +140,8 @@ class SignupView(View):
                 logger.debug("Returning JSON response for failed signup (username exists)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering signup template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
         if User.objects.filter(email=email).exists():
             error_msg = 'Email already exists'
@@ -156,10 +150,8 @@ class SignupView(View):
                 logger.debug("Returning JSON response for failed signup (email exists)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering signup template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
         if len(password1) < 8:
             error_msg = 'Password must be at least 8 characters long'
@@ -168,10 +160,8 @@ class SignupView(View):
                 logger.debug("Returning JSON response for failed signup (password too short)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering signup template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
         try:
             user = User.objects.create_user(username=username, email=email, password=password1)
@@ -190,10 +180,8 @@ class SignupView(View):
                 logger.debug("Returning JSON response for failed signup (exception)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
             else:
-                from django.contrib import messages
-                messages.error(request, error_msg)
                 logger.debug("Rendering signup template with error")
-                return render(request, self.template_name)
+                return render(request, self.template_name, {'error': error_msg})
 
 class LogoutView(View):
     def get(self, request):
