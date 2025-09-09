@@ -1,30 +1,56 @@
 {% extends 'base.html' %}
-{% block title %}{{ video_title }} - Download Options{% endblock %}
+{% block title %}{{ video_title|default:"Download Options" }} - YouTube Downloader{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto">
-    <!-- Video Details -->
-    <div class="glass-effect rounded-xl p-6 mb-8 card-hover">
-        <div class="flex items-start space-x-4">
-            {% if thumbnail_url %}
-                <img src="{{ thumbnail_url }}" alt="Video Thumbnail" class="w-32 h-24 object-cover rounded-lg flex-shrink-0">
-            {% else %}
-                <div class="w-32 h-24 bg-gray-300 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <span class="text-gray-500 text-sm">No Thumbnail</span>
-                </div>
-            {% endif %}
-            <div class="flex-1 min-w-0">
-                <h2 class="text-2xl font-bold text-primary mb-2 truncate">{{ video_title }}</h2>
-                <p class="text-sm text-muted mb-4">Choose your preferred format below</p>
-                <form id="back-form" method="get" action="{% url 'home' %}" style="display: inline;">
-                    <button type="submit" class="text-info hover:underline text-sm">← Back to Home</button>
-                </form>
-            </div>
-        </div>
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Debug Info (Remove in production) -->
+    <div class="bg-yellow-100 border border-yellow-400 rounded-xl p-4 mb-4">
+        <h4 class="font-bold text-yellow-800 mb-2">DEBUG INFO:</h4>
+        <p><strong>Video Title:</strong> "{{ video_title|default:"None" }}"</p>
+        <p><strong>Thumbnail URL:</strong> "{{ thumbnail_url|default:"None" }}"</p>
+        <p><strong>Video Streams Count:</strong> {{ video_streams|length|default:"0" }}</p>
+        <p><strong>Audio Stream:</strong> {% if audio_stream %}Yes (format_id: {{ audio_stream.format_id|default:"None" }}) {% else %}No{% endif %}</p>
+        <p><strong>Error:</strong> "{{ error|default:"None" }}"</p>
     </div>
 
+    <!-- Video Details Header -->
+    <div class="text-center mb-12 fade-in">
+        <div class="relative mb-6">
+            {% if thumbnail_url %}
+                <img src="{{ thumbnail_url }}" alt="Video Thumbnail" class="w-80 h-48 mx-auto object-cover rounded-xl shadow-lg transition-transform duration-300 hover:scale-105">
+                <div class="absolute bottom-3 right-3 bg-red-600 text-white text-sm px-3 py-1 rounded-md font-medium shadow">
+                    YouTube
+                </div>
+            {% else %}
+                <div class="w-80 h-48 mx-auto bg-gray-100 rounded-xl flex items-center justify-center shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+            {% endif %}
+        </div>
+        
+        <h1 class="text-3xl font-bold font-montserrat text-gray-800 mb-2 truncate">{{ video_title|default:"Video Download" }}</h1>
+        <p class="text-lg text-gray-600 mb-6 font-lato">Select your preferred quality and format below</p>
+        
+        <!-- Back Button -->
+        <a href="{% url 'home' %}" class="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>Back to Home</span>
+        </a>
+    </div>
+
+    <!-- Error Message -->
     {% if error %}
-        <div class="p-4 bg-danger/20 border border-danger rounded-lg mb-6">
-            <p class="text-danger font-medium">{{ error }}</p>
+        <div class="p-6 bg-red-50 border border-red-200 rounded-xl mb-8 text-center shadow-sm">
+            <div class="flex items-center justify-center space-x-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p class="text-red-800 font-medium text-lg">{{ error }}</p>
+            </div>
+            <a href="{% url 'download' %}" class="text-blue-600 underline mt-2 inline-block">Try Another Video</a>
         </div>
     {% endif %}
 
@@ -32,21 +58,33 @@
     <div class="space-y-8">
         <!-- Video Options -->
         {% if video_streams %}
-            <div class="glass-effect rounded-xl p-6">
-                <h3 class="text-xl font-semibold text-primary mb-4 flex items-center">
-                    <i class="fas fa-video mr-2 text-success"></i> Video Formats (MP4)
+            <div class="bg-white rounded-xl p-8 shadow-md border border-gray-100 transition-shadow duration-300 hover:shadow-lg">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span>Video Formats (MP4)</span>
                 </h3>
-                <div class="grid md:grid-cols-3 gap-3">
+                <div class="grid md:grid-cols-3 gap-4">
                     {% for stream in video_streams %}
-                        <form method="post" action="{% url 'download_file' %}" class="download-form" data-format="{{ stream.format_id }}">
+                        <form method="post" action="{% url 'download_file' %}" class="download-form" data-format="{{ stream.format_id|default:'unknown' }}">
                             {% csrf_token %}
                             <input type="hidden" name="video_url" value="{{ video_url }}">
-                            <input type="hidden" name="format_id" value="{{ stream.format_id }}">
-                            <button type="submit" class="w-full custom-btn bg-success hover:bg-success/90">
-                                {{ stream.format_note|default:stream.height }}p
-                                {% if stream.tbr %}
-                                    <span class="text-xs block">({{ stream.tbr }}kbps)</span>
-                                {% endif %}
+                            <input type="hidden" name="format_id" value="{{ stream.format_id|default:'unknown' }}">
+                            <button type="submit" class="group relative bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-xl hover:from-blue-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg">
+                                <div class="text-center">
+                                    <div class="text-lg font-bold mb-1">{{ stream.format_note|default:stream.height|default:"Unknown" }}p</div>
+                                    {% if stream.tbr %}
+                                        <div class="text-xs opacity-90">({{ stream.tbr|floatformat:0 }} kbps)</div>
+                                    {% endif %}
+                                </div>
+                                <span class="loader hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-xl">
+                                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </span>
                             </button>
                         </form>
                     {% endfor %}
@@ -56,31 +94,69 @@
 
         <!-- Audio Only Option -->
         {% if audio_stream %}
-            <div class="glass-effect rounded-xl p-6">
-                <h3 class="text-xl font-semibold text-primary mb-4 flex items-center">
-                    <i class="fas fa-music mr-2 text-info"></i> Audio Only ({{ audio_stream.ext|upper }})
+            <div class="bg-white rounded-xl p-8 shadow-md border border-gray-100 transition-shadow duration-300 hover:shadow-lg">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm8-14v14M9 19l12-3" />
+                    </svg>
+                    <span>Audio Only ({{ audio_stream.ext|upper|default:"MP3" }})</span>
                 </h3>
                 <form method="post" action="{% url 'download_file' %}" class="download-form">
                     {% csrf_token %}
                     <input type="hidden" name="video_url" value="{{ video_url }}">
-                    <input type="hidden" name="format_id" value="{{ audio_stream.format_id }}">
-                    <button type="submit" class="w-full custom-btn bg-info hover:bg-info/90">
-                        Download Audio ({{ audio_stream.abr|default:"Best Quality" }})
+                    <input type="hidden" name="format_id" value="{{ audio_stream.format_id|default:'audio_only' }}">
+                    <button type="submit" class="group relative w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl hover:from-green-600 hover:to-green-700 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg">
+                        <div class="text-center">
+                            <div class="text-lg font-bold mb-1">Download Audio</div>
+                            <div class="text-sm opacity-90">({{ audio_stream.abr|floatformat:0|default:"Best Quality" }} kbps)</div>
+                        </div>
+                        <span class="loader hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-xl">
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
                     </button>
                 </form>
             </div>
         {% endif %}
+
+        <!-- No Streams Fallback -->
+        {% if not video_streams and not audio_stream %}
+            <div class="text-center py-12 bg-gray-50 rounded-xl shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <h3 class="text-xl font-semibold text-gray-600 mb-2">No Download Options Available</h3>
+                <p class="text-gray-500 mb-6">This video may not have available formats or there was an issue processing it.</p>
+                <a href="{% url 'download' %}" class="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>Try Another Video</span>
+                </a>
+            </div>
+        {% endif %}
     </div>
 
-    <!-- Progress Bar for Download -->
-    <div id="progress-overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-        <div class="glass-effect rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 class="text-lg font-semibold mb-4 text-white">Downloading Video...</h3>
-            <div class="w-full bg-white/20 rounded-full h-3 mb-2">
-                <div id="download-progress" class="bg-success h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+    <!-- Progress Overlay for Download -->
+    <div id="progress-overlay" class="fixed inset-0 bg-black bg-opacity-60 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div class="text-center mb-6">
+                <div class="relative w-16 h-16 mx-auto mb-4">
+                    <svg class="w-full h-full animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Downloading Video...</h3>
+                <p class="text-gray-600">Please wait while we prepare your download</p>
             </div>
-            <p id="download-progress-text" class="text-center text-sm text-white">0%</p>
-            <p id="download-status" class="text-center text-sm text-white/80 mt-2">Preparing download...</p>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4 overflow-hidden">
+                <div id="download-progress" class="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="download-progress-text" class="text-center text-sm text-gray-800 font-medium">0%</p>
+            <p id="download-status" class="text-center text-xs text-gray-500 mt-2">Initializing download...</p>
         </div>
     </div>
 </div>
@@ -107,57 +183,83 @@ class DownloadOptionsHandler {
 
     async handleDownload(form) {
         const formData = new FormData(form);
-        this.showProgress(0);
+        const button = form.querySelector('button[type="submit"]');
+        const loader = button.querySelector('.loader');
+        const originalText = button.innerHTML;
+
+        console.log('Submitting form:', formData.get('video_url'), formData.get('format_id'));
+
+        button.disabled = true;
+        loader.classList.remove('hidden');
 
         try {
-            // Simulate initial processing
-            this.updateProgress(10, 'Processing video info...');
-            
+            this.showProgress(0, 'Preparing download...');
+
             const response = await fetch(form.action, {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             });
 
             if (!response.ok) {
                 const data = await response.json();
                 this.hideProgress();
-                toastManager.buildToast()
-                    .setMessage(data.error || 'Download failed')
-                    .setType('error')
-                    .show();
+                this.hideLoader(button, loader, originalText);
+                this.showToast(data.error || 'Download failed', 'error');
+                console.error('Download error:', data.error);
                 return;
             }
 
-            // Simulate download progress
-            this.simulateDownloadProgress();
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/octet-stream')) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                const videoTitle = "{{ video_title|default:'video'|truncatechars:50|escapejs }}";
+                const fileExt = formData.get('format_id') === 'audio_only' ? 'mp3' : 'mp4';
+                a.download = `${videoTitle}.${fileExt}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
 
-            // The FileResponse will trigger download directly
-            // For demo, we'll simulate completion
-            setTimeout(() => {
                 this.updateProgress(100, 'Download complete!');
-                toastManager.buildToast()
-                    .setMessage('Download started successfully!')
-                    .setType('success')
-                    .show();
-                setTimeout(() => this.hideProgress(), 1500);
-            }, 1000);
-
+                this.showToast('Download started successfully!', 'success');
+                setTimeout(() => {
+                    this.hideProgress();
+                    this.hideLoader(button, loader, originalText);
+                }, 1500);
+            } else {
+                this.hideProgress();
+                this.hideLoader(button, loader, originalText);
+                this.showToast('Unexpected response from server', 'error');
+                console.error('Unexpected response, content-type:', contentType);
+            }
         } catch (error) {
             this.hideProgress();
-            this.updateProgress(0, 'Error occurred');
-            toastManager.buildToast()
-                .setMessage('Download error: ' + error.message)
-                .setType('error')
-                .show();
+            this.hideLoader(button, loader, originalText);
+            this.showToast(`Network error: ${error.message}`, 'error');
+            console.error('Network error:', error.message);
         }
     }
 
-    showProgress(percent) {
+    showProgress(percent, status) {
         this.progressOverlay.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+        this.progressBar.style.width = percent + '%';
+        this.progressText.textContent = Math.floor(percent) + '%';
+        this.statusText.textContent = status;
+    }
+
+    updateProgress(percent, status) {
+        this.progressBar.style.width = percent + '%';
+        this.progressText.textContent = Math.floor(percent) + '%';
+        this.statusText.textContent = status;
     }
 
     hideProgress() {
@@ -167,35 +269,26 @@ class DownloadOptionsHandler {
         this.progressText.textContent = '0%';
     }
 
-    updateProgress(percent, status) {
-        this.progressBar.style.width = percent + '%';
-        this.progressText.textContent = Math.floor(percent) + '%';
-        this.statusText.textContent = status;
+    hideLoader(button, loader, originalContent) {
+        button.disabled = false;
+        loader.classList.add('hidden');
+        button.innerHTML = originalContent;
     }
 
-    simulateDownloadProgress() {
-        let percent = 10;
-        const updates = [
-            'Fetching video data...',
-            'Downloading video stream...',
-            'Downloading audio stream...',
-            'Merging video and audio...',
-            'Finalizing download...'
-        ];
-        let updateIndex = 0;
-
-        const interval = setInterval(() => {
-            percent += Math.random() * 20;
-            if (percent >= 100) {
-                percent = 100;
-                clearInterval(interval);
-            }
-            this.updateProgress(percent, updates[updateIndex] || 'Completing download...');
-            updateIndex = Math.floor(percent / 20);
-        }, 800);
+    showToast(message, type = 'info') {
+        if (typeof toastManager !== 'undefined' && toastManager) {
+            toastManager.buildToast()
+                .setMessage(message)
+                .setType(type)
+                .show();
+        } else {
+            alert(message);
+        }
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => new DownloadOptionsHandler());
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => new DownloadOptionsHandler(), 100);
+});
 </script>
 {% endblock %}

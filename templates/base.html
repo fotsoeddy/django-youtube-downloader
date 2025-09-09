@@ -7,7 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}YouTube Downloader{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
-    <script src="{% static 'js/toast_manager.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             {% if messages %}
@@ -42,5 +41,6 @@
         {% block content %}
         {% endblock %}
     </main>
+    <script src="{% static 'js/toast_manager.js' %}"></script>
 </body>
 </html>
