@@ -8,4 +8,5 @@ platformdirs==4.2.2
 psycopg2-binary==2.9.10
 python-decouple==3.8
 tomli==2.0.1
+whitenoise==6.11.0
 yt-dlp==2025.9.5
