@@ -1,0 +1,11 @@
+backports.tarfile==1.2.0
+dj-database-url==3.0.1
+gunicorn==23.0.0
+importlib-metadata==8.0.0
+jaraco.collections==5.1.0
+pip-chill==1.0.3
+platformdirs==4.2.2
+psycopg2-binary==2.9.10
+python-decouple==3.8
+tomli==2.0.1
+yt-dlp==2025.9.5
