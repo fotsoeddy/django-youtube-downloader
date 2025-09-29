@@ -1,5 +1,8 @@
+import base64
 import os
+import tempfile
 import uuid
+from django.conf import settings
 import logging
 from django.views.generic import View, TemplateView
 from django.shortcuts import render, redirect
@@ -191,6 +194,7 @@ class LogoutView(View):
         logger.info(f"User {username} logged out")
         logger.debug("Exiting LogoutView.get")
         return redirect('home')
+
 class DownloadView(View):
     template_name = 'download.html'
 
@@ -199,7 +203,6 @@ class DownloadView(View):
         if not request.user.is_authenticated:
             logger.info("Unauthenticated user redirected to login from download page")
             return redirect('login')
-        # Retrieve last video info from session
         context = request.session.get('last_video_info', {'error': None})
         logger.info(f"User {request.user.username} accessed download page via GET with context: {context}")
         logger.debug("Exiting DownloadView.get")
@@ -218,15 +221,30 @@ class DownloadView(View):
             return JsonResponse({'success': False, 'error': 'No video URL provided'}, status=400)
 
         logger.info(f"Processing video URL: {video_url} for user {request.user.username}")
+
+        # Create temporary cookies file from base64 env
+        cookies_file_path = None
+        try:
+            yt_cookies_b64 = os.environ.get('YT_COOKIES_B64')
+            if yt_cookies_b64:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_file:
+                    cookies_file_path = tmp_file.name
+                    tmp_file.write(base64.b64decode(yt_cookies_b64))
+                logger.debug(f"Temporary cookies file created at {cookies_file_path}")
+        except Exception as e:
+            logger.error(f"Failed to decode YT_COOKIES_B64: {e}")
+
         try:
             ydl_opts = {
                 'quiet': True,
                 'skip_download': True,
                 'format': 'bestvideo+bestaudio/best',
             }
-            if os.path.exists('cookies.txt'):
-                ydl_opts['cookies'] = 'cookies.txt'
-                logger.debug("Using cookies.txt for authentication")
+            if cookies_file_path and os.path.exists(cookies_file_path):
+                ydl_opts['cookiefile'] = cookies_file_path
+                logger.debug(f"Using cookies from {cookies_file_path}")
+            else:
+                logger.warning("No cookies file found; YouTube downloads may fail")
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 logger.debug(f"Extracting info for URL: {video_url}")
@@ -236,12 +254,9 @@ class DownloadView(View):
             thumbnail_url = info.get('thumbnail') or (info.get('thumbnails', [{}])[0].get('url') if info.get('thumbnails') else None)
             formats = info.get('formats', [])
 
-            # Filter streams (aligned with Flask)
             video_streams = [f for f in formats if f.get('vcodec') != 'none' and f.get('ext') == 'mp4']
             audio_streams = [f for f in formats if f.get('vcodec') == 'none' and f.get('acodec') != 'none']
             audio_stream = audio_streams[0] if audio_streams else None
-
-            logger.info(f"Found {len(video_streams)} video streams and {len(audio_streams)} audio streams for {video_title}")
 
             context = {
                 'video_title': video_title,
@@ -251,21 +266,15 @@ class DownloadView(View):
                 'video_url': video_url,
                 'error': None
             }
-            logger.debug(f"Context for template: {context}")
-
-            # Store context in session for GET requests
             request.session['last_video_info'] = context
-            request.session.modified = True  # Ensure session is saved
+            request.session.modified = True
 
             if not video_streams and not audio_stream:
-                logger.warning(f"No valid streams found for video: {video_url}")
-                context['error'] = 'No downloadable formats available for this video. Try a different video.'
+                context['error'] = 'No downloadable formats available for this video.'
                 return render(request, self.template_name, context)
 
-            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-            if is_ajax:
-                logger.debug("Returning JSON response for AJAX request")
-                json_response = {
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
                     'success': True,
                     'video_title': video_title,
                     'thumbnail_url': thumbnail_url,
@@ -280,16 +289,12 @@ class DownloadView(View):
                             'height': stream.get('height', 'Unknown'),
                             'format_note': stream.get('format_note', ''),
                             'tbr': stream.get('tbr', 'Unknown')
-                        }
-                        for stream in video_streams
+                        } for stream in video_streams
                     ],
                     'video_url': video_url,
                     'redirect_url': '/download/'
-                }
-                logger.debug(f"JSON response: {json_response}")
-                return JsonResponse(json_response)
+                })
 
-            logger.debug("Rendering download template with streams")
             return render(request, self.template_name, context)
 
         except Exception as e:
@@ -299,6 +304,11 @@ class DownloadView(View):
             request.session.modified = True
             return render(request, self.template_name, context)
 
+        finally:
+            # Clean up temporary cookies file
+            if cookies_file_path and os.path.exists(cookies_file_path):
+                os.remove(cookies_file_path)
+                logger.debug(f"Temporary cookies file {cookies_file_path} removed")
 class DownloadFileView(LoginRequiredMixin, View):
     @method_decorator(csrf_exempt, name='dispatch')
     def post(self, request):
@@ -319,9 +329,11 @@ class DownloadFileView(LoginRequiredMixin, View):
             'quiet': True,
             'merge_output_format': 'mp4' if format_id != 'audio_only' else None,
         }
-        if os.path.exists('cookies.txt'):
-            ydl_opts['cookies'] = 'cookies.txt'
-            logger.debug("Using cookies.txt for download")
+        if settings.YT_COOKIES_FILE and os.path.exists(settings.YT_COOKIES_FILE):
+            ydl_opts['cookiefile'] = settings.YT_COOKIES_FILE
+            logger.debug(f"Using cookies from {settings.YT_COOKIES_FILE}")
+        else:
+            logger.warning("No cookies file found, YouTube downloads may fail")
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
