@@ -8,12 +8,14 @@ from django.views.generic import View, TemplateView
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.models import User
-from django.http import FileResponse, JsonResponse, HttpResponseRedirect
+from django.http import FileResponse, JsonResponse, HttpResponseServerError
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.db.utils import OperationalError
 import yt_dlp
 from .models import DownloadedVideo
+import time
 
 # Configure logger with detailed formatting
 logging.basicConfig(
@@ -29,15 +31,34 @@ class HomeView(TemplateView):
         logger.debug("Entering HomeView.get_context_data")
         context = super().get_context_data(**kwargs)
         
-        if self.request.user.is_authenticated:
-            downloads = self.request.user.downloads.all().order_by('-downloaded_at')[:3]
-            public_downloads = DownloadedVideo.objects.exclude(user=self.request.user).order_by('-downloaded_at')[:3]
-            logger.info(f"User {self.request.user.username} accessed home page with {len(downloads)} user downloads and {len(public_downloads)} public downloads")
-            context['downloads'] = downloads
-        else:
-            downloads = []
-            public_downloads = DownloadedVideo.objects.filter(user__isnull=False).order_by('-downloaded_at')[:3] if DownloadedVideo.objects.exists() else []
-            logger.info(f"Unauthenticated user accessed home page with {len(public_downloads)} public downloads")
+        # Force session load to avoid _session_cache issue
+        try:
+            self.request.session.load()
+        except Exception as e:
+            logger.error(f"Failed to load session: {str(e)}", exc_info=True)
+        
+        max_retries = 3
+        retry_delay = 1  # seconds
+        for attempt in range(max_retries):
+            try:
+                if self.request.user.is_authenticated:
+                    downloads = self.request.user.downloads.all().order_by('-downloaded_at')[:3]
+                    public_downloads = DownloadedVideo.objects.exclude(user=self.request.user).order_by('-downloaded_at')[:3]
+                    logger.info(f"User {self.request.user.username} accessed home page with {len(downloads)} user downloads and {len(public_downloads)} public downloads")
+                    context['downloads'] = downloads
+                else:
+                    downloads = []
+                    public_downloads = DownloadedVideo.objects.filter(user__isnull=False).order_by('-downloaded_at')[:3] if DownloadedVideo.objects.exists() else []
+                    logger.info(f"Unauthenticated user accessed home page with {len(public_downloads)} public downloads")
+                break  # Success, exit retry loop
+            except OperationalError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Database connection error, retrying ({attempt + 1}/{max_retries}): {str(e)}")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}", exc_info=True)
+                    return HttpResponseServerError("Database unavailable. Please try again later.")
         
         context['public_downloads'] = public_downloads
         context['is_authenticated'] = self.request.user.is_authenticated
@@ -86,7 +107,7 @@ class LoginView(View):
                 return redirect('home')
         else:
             error_msg = 'Invalid username or password'
-            logger.warning(f"Login failed for {username}: {error_msg}")
+            logger.warning(f"Login.Clear failed for {username}: {error_msg}")
             if is_ajax:
                 logger.debug("Returning JSON response for failed login (invalid credentials)")
                 return JsonResponse({'success': False, 'error': error_msg}, status=400)
@@ -231,6 +252,8 @@ class DownloadView(View):
                     cookies_file_path = tmp_file.name
                     tmp_file.write(base64.b64decode(yt_cookies_b64))
                 logger.debug(f"Temporary cookies file created at {cookies_file_path}")
+            else:
+                logger.warning("No cookies provided; YouTube downloads may fail")
         except Exception as e:
             logger.error(f"Failed to decode YT_COOKIES_B64: {e}")
 
@@ -239,12 +262,11 @@ class DownloadView(View):
                 'quiet': True,
                 'skip_download': True,
                 'format': 'bestvideo+bestaudio/best',
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             }
             if cookies_file_path and os.path.exists(cookies_file_path):
                 ydl_opts['cookiefile'] = cookies_file_path
                 logger.debug(f"Using cookies from {cookies_file_path}")
-            else:
-                logger.warning("No cookies file found; YouTube downloads may fail")
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 logger.debug(f"Extracting info for URL: {video_url}")
@@ -298,8 +320,11 @@ class DownloadView(View):
             return render(request, self.template_name, context)
 
         except Exception as e:
-            logger.error(f"Error processing video URL {video_url}: {str(e)}", exc_info=True)
-            context = {'error': f'Failed to process video: {str(e)}'}
+            error_msg = str(e)
+            if "Sign in to confirm you’re not a bot" in error_msg:
+                error_msg = "Authentication required. Please try another video or contact support."
+            logger.error(f"Error processing video URL {video_url}: {error_msg}", exc_info=True)
+            context = {'error': f'Failed to process video: {error_msg}'}
             request.session['last_video_info'] = context
             request.session.modified = True
             return render(request, self.template_name, context)
@@ -307,8 +332,12 @@ class DownloadView(View):
         finally:
             # Clean up temporary cookies file
             if cookies_file_path and os.path.exists(cookies_file_path):
-                os.remove(cookies_file_path)
-                logger.debug(f"Temporary cookies file {cookies_file_path} removed")
+                try:
+                    os.remove(cookies_file_path)
+                    logger.debug(f"Temporary cookies file {cookies_file_path} removed")
+                except Exception as e:
+                    logger.error(f"Error removing temporary cookies file: {str(e)}")
+
 class DownloadFileView(LoginRequiredMixin, View):
     @method_decorator(csrf_exempt, name='dispatch')
     def post(self, request):
@@ -323,17 +352,30 @@ class DownloadFileView(LoginRequiredMixin, View):
         temp_filename = f"temp_{uuid.uuid4()}.%(ext)s"
         logger.info(f"Starting download for user {request.user.username}: URL={video_url}, format={format_id}")
 
+        # Create temporary cookies file from base64 env
+        cookies_file_path = None
+        try:
+            yt_cookies_b64 = os.environ.get('YT_COOKIES_B64')
+            if yt_cookies_b64:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_file:
+                    cookies_file_path = tmp_file.name
+                    tmp_file.write(base64.b64decode(yt_cookies_b64))
+                logger.debug(f"Temporary cookies file created at {cookies_file_path}")
+            else:
+                logger.warning("No cookies provided; YouTube downloads may fail")
+        except Exception as e:
+            logger.error(f"Failed to decode YT_COOKIES_B64: {str(e)}")
+
         ydl_opts = {
             'format': f'{format_id}+bestaudio/best' if format_id != 'audio_only' else format_id,
             'outtmpl': temp_filename,
             'quiet': True,
             'merge_output_format': 'mp4' if format_id != 'audio_only' else None,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         }
-        if settings.YT_COOKIES_FILE and os.path.exists(settings.YT_COOKIES_FILE):
-            ydl_opts['cookiefile'] = settings.YT_COOKIES_FILE
-            logger.debug(f"Using cookies from {settings.YT_COOKIES_FILE}")
-        else:
-            logger.warning("No cookies file found, YouTube downloads may fail")
+        if cookies_file_path and os.path.exists(cookies_file_path):
+            ydl_opts['cookiefile'] = cookies_file_path
+            logger.debug(f"Using cookies from {cookies_file_path}")
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -343,15 +385,27 @@ class DownloadFileView(LoginRequiredMixin, View):
             actual_filename = ydl.prepare_filename(info)
             logger.info(f"Download completed: {actual_filename}")
 
-            # Save download history
-            DownloadedVideo.objects.create(
-                user=request.user,
-                title=info.get('title', 'Unknown'),
-                url=video_url,
-                thumbnail_url=info.get('thumbnail') or (info.get('thumbnails', [{}])[0].get('url') if info.get('thumbnails') else None),
-                format_id=format_id
-            )
-            logger.info(f"Download history saved for user {request.user.username}: {info.get('title', 'Unknown')}")
+            # Save download history with retry logic
+            max_retries = 3
+            retry_delay = 1
+            for attempt in range(max_retries):
+                try:
+                    DownloadedVideo.objects.create(
+                        user=request.user,
+                        title=info.get('title', 'Unknown'),
+                        url=video_url,
+                        thumbnail_url=info.get('thumbnail') or (info.get('thumbnails', [{}])[0].get('url') if info.get('thumbnails') else None),
+                        format_id=format_id
+                    )
+                    logger.info(f"Download history saved for user {request.user.username}: {info.get('title', 'Unknown')}")
+                    break
+                except OperationalError as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Database connection error, retrying ({attempt + 1}/{max_retries}): {str(e)}")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error(f"Failed to save download history after {max_retries} attempts: {str(e)}", exc_info=True)
 
             file_ext = 'mp3' if format_id == 'audio_only' else info.get('ext', 'mp4')
             response = FileResponse(
@@ -367,8 +421,11 @@ class DownloadFileView(LoginRequiredMixin, View):
                     if os.path.exists(actual_filename):
                         os.remove(actual_filename)
                         logger.debug(f"Temporary file {actual_filename} deleted")
+                    if cookies_file_path and os.path.exists(cookies_file_path):
+                        os.remove(cookies_file_path)
+                        logger.debug(f"Temporary cookies file {cookies_file_path} deleted")
                 except Exception as e:
-                    logger.error(f"Error cleaning up temp file {actual_filename}: {str(e)}")
+                    logger.error(f"Error cleaning up files: {str(e)}")
 
             response._closable = True
             original_close = response.close
@@ -382,14 +439,23 @@ class DownloadFileView(LoginRequiredMixin, View):
             return response
 
         except Exception as e:
+            error_msg = str(e)
+            if "Sign in to confirm you’re not a bot" in error_msg:
+                error_msg = "Authentication required. Please try another video or contact support."
             if 'actual_filename' in locals() and os.path.exists(actual_filename):
                 try:
                     os.remove(actual_filename)
                     logger.debug(f"Temporary file {actual_filename} deleted after error")
                 except:
                     pass
-            logger.error(f"Download failed for user {request.user.username}: {str(e)}", exc_info=True)
-            return JsonResponse({'success': False, 'error': f'Download failed: {str(e)}'}, status=400)
+            if cookies_file_path and os.path.exists(cookies_file_path):
+                try:
+                    os.remove(cookies_file_path)
+                    logger.debug(f"Temporary cookies file {cookies_file_path} deleted after error")
+                except:
+                    pass
+            logger.error(f"Download failed for user {request.user.username}: {error_msg}", exc_info=True)
+            return JsonResponse({'success': False, 'error': f'Download failed: {error_msg}'}, status=400)
 
 class MyDownloadsView(LoginRequiredMixin, TemplateView):
     template_name = 'my_downloads.html'
@@ -397,8 +463,21 @@ class MyDownloadsView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         logger.debug("Entering MyDownloadsView.get_context_data")
         context = super().get_context_data(**kwargs)
-        downloads = self.request.user.downloads.all().order_by('-downloaded_at')
-        logger.info(f"User {self.request.user.username} accessed their downloads page with {len(downloads)} downloads")
-        context['downloads'] = downloads
+        max_retries = 3
+        retry_delay = 1
+        for attempt in range(max_retries):
+            try:
+                downloads = self.request.user.downloads.all().order_by('-downloaded_at')
+                logger.info(f"User {self.request.user.username} accessed their downloads page with {len(downloads)} downloads")
+                context['downloads'] = downloads
+                break
+            except OperationalError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Database connection error, retrying ({attempt + 1}/{max_retries}): {str(e)}")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}", exc_info=True)
+                    return HttpResponseServerError("Database unavailable. Please try again later.")
         logger.debug("Exiting MyDownloadsView.get_context_data")
         return context

@@ -52,6 +52,8 @@ coverage.xml
 .env
 .env.*
 *.env
+cookies.txt
+cookies.b64
 
 # Docker
 *.pid
@@ -68,4 +70,3 @@ Thumbs.db
 postgres_data/
 
 node_modules
-cookies.txt

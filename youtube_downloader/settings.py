@@ -1,16 +1,14 @@
 import os
 from pathlib import Path
 from decouple import config
-
 import dj_database_url
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=True, cast=bool)
-
-YT_COOKIES_FILE = os.environ.get("YT_COOKIES_FILE")
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
@@ -55,9 +53,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'youtube_downloader.wsgi.application'
 
-
-
-
 if DEBUG:
     DATABASES = {
         'default': {
@@ -74,9 +69,18 @@ else:
     DATABASES = {
         'default': dj_database_url.parse(
             config('DATABASE_URL'),
-            conn_max_age=600  # optional: persistent connection
+            conn_max_age=60,
+            ssl_require=True
         )
     }
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': config('REDIS_URL', 'redis://127.0.0.1:6379/1'),
+    }
+}
 
 # Authentication
 LOGIN_URL = '/login/'
@@ -114,7 +118,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Logging Configuration - Fixed for Django compatibility
+# Logging Configuration
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
