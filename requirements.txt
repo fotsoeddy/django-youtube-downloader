@@ -1,5 +1,6 @@
 backports.tarfile==1.2.0
 dj-database-url==3.0.1
+django-redis==6.0.0
 gunicorn==23.0.0
 importlib-metadata==8.0.0
 jaraco.collections==5.1.0
